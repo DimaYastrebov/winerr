@@ -139,10 +139,34 @@ async function load() {
     let iconsGzip = "";
     let fontsGzip = "";
 
+    const cacheExists = await new Promise((resolve) => {
+        const req = indexedDB.open("assetsdb", 1);
+        req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains("assets")) {
+                db.createObjectStore("assets");
+            }
+        };
+        
+        req.onsuccess = (e) => {
+            const db = e.target.result;
+            try {
+                const tx = db.transaction(["assets"], "readonly");
+                const store = tx.objectStore("assets");
+                const getReq = store.get("assets");
+                getReq.onsuccess = () => resolve(!!getReq.result);
+                getReq.onerror = () => resolve(false);
+            } catch (err) {
+                resolve(false);
+            }
+        };
+        req.onerror = () => resolve(false);
+    });
+    
     // Check if the last downloaded version matches the actual newest one.
     // If it does, start downloading an update. If it doesn't, just load
     // the cached assets and move on.
-    if (savedVersion != version) {
+    if (savedVersion != version || !cacheExists) {
         modalContent.innerHTML = loadingAssets;
 
         // Send the request to start downloading resources
